@@ -16,7 +16,7 @@ pipeline {
     stages {
 		stage ('prepare') {
 		  steps {
-			withCredentials([file(credentialsId: 'config', variable: 'KUBECONFIG')]) {
+			withCredentials([file(credentialsId: 'ack-01', variable: 'KUBECONFIG')]) {
 			  sh "mkdir -p ${env.WORKSPACE}/.kube && cp ${KUBECONFIG} ${env.WORKSPACE}/.kube/config"
 			}
 		  }
