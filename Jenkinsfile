@@ -23,6 +23,7 @@ pipeline {
       steps {
         withCredentials([file(credentialsId: 'config', variable: 'KUBECONFIG')]) {
           sh "mkdir -p ${env.WORKSPACE}/.kube && cp ${KUBECONFIG} ${env.WORKSPACE}/.kube/config"
+          sh "cat ${env.WORKSPACE}/.kube/config"
         }
       }
     }
