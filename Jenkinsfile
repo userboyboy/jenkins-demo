@@ -1,42 +1,59 @@
 pipeline {
-    // 定义groovy脚本中使用的环境变量。
-    environment {
-        // 本示例中使用DEPLOY_TO_K8S变量来决定把应用部署到哪套容器集群环境中，如“Production Environment”， “Staging001 Environment”等。
-        IMAGE_TAG = sh(returnStdout: true, script: 'echo $image_tag').trim()
-        ORIGIN_REPO = sh(returnStdout: true, script: 'echo $origin_repo').trim()
-        REPO = sh(returnStdout: true, script: 'echo $repo').trim()
-        BRANCH = sh(returnStdout: true, script: 'echo $branch').trim()
+  agent {
+    kubernetes {
+      cloud 'kubernetes-ACK'
+      label 'mvn'
     }
-    agent {
-        node {
-            label 'mvn'
+  }
+  parameters {
+    choice(
+          name: 'RUN_ENV',
+          choices: ['dev', 'test'],
+          description: '请选择发布环境',
+    )
+  }
+  environment {
+      KUBECONFIG_CREDENTIAL_ID = 'ack-01'
+      REGISTRY = 'registry.cn-shanghai.aliyuncs.com'
+      HARBOR_NAMESPACE = 'sino-test01'
+      APP_NAME = 'mvn'
+  }
+  stages {
+    stage ('prepare') {
+      steps {
+        withCredentials([file(credentialsId: 'config', variable: 'KUBECONFIG')]) {
+          sh "mkdir -p ${env.WORKSPACE}/.kube && cp ${KUBECONFIG} ${env.WORKSPACE}/.kube/config"
         }
+      }
     }
-    stages {
-        stage('Deploy to Kubernetes') {
-            steps {
-                withKubeConfig(caCertificate: '', clusterName: 'test-k8s-haha01', contextName: '', credentialsId: 'ack-01', namespace: 'sino-ops', serverUrl: '') {
-                    sh "mkdir -p /.kube && cp ${ack-01} /.kube/config"
-                    sh "cat /.kube/config"
-                }
-            }
-        }
-        stage('Package') {
-            steps {
-                container("mvn") {
-                    sh "ls"
-                    sh "mvn package -B -DskipTests"
-                }
-            }
-        }
-        stage('Info') {
-            steps {
-                container("mvn") {
-                    sh "ls"
-                    sh "hostname"
-                    sh "mvn -v"
-                }
+    stage ('build & push') {
+        steps {
+            container ('jdk11') {
+                sh 'mvn -o -Dmaven.test.skip=true -gs `pwd`/configuration/settings.xml clean package'
+                sh 'docker build -f Dockerfile -t $REGISTRY/$HARBOR_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .'
+                sh 'docker login $REGISTRY -u ${DOCKER_USERNAME}'
+                sh 'docker push $REGISTRY/$HARBOR_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER'
+            
             }
         }
     }
+    stage ('deploy to dev') {
+      when {
+        environment name: 'RUN_ENV',
+        value: 'dev'
+      }
+      steps {
+        kubernetesDeploy(configs: 'deploy/dev/**', enableConfigSubstitution: true, kubeConfig: [path: '.kube/config'])
+      }
+    }
+    stage ('deploy to test') {
+      when {
+        environment name: 'RUN_ENV',
+        value: 'test'
+      }
+      steps {
+        kubernetesDeploy(configs: 'deploy/test/**', enableConfigSubstitution: true, kubeConfig: [path: '.kube/config'])
+      }
+    }
+  }
 }
