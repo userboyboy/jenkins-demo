@@ -19,42 +19,30 @@ pipeline {
       APP_NAME = 'mvn'
   }
   stages {
-    stage ('prepare') {
-      steps {
-        withCredentials([file(credentialsId: 'ack-01', variable: 'KUBECONFIG')]) {
-          sh "mkdir -p ${env.WORKSPACE}/.kube && cp ${KUBECONFIG} ${env.WORKSPACE}/.kube/config"
-          sh "cat ${env.WORKSPACE}/.kube/config"
-        }
-      }
-    }
-    stage ('build & push') {
-        steps {
-            container ('mvn') {
-                sh 'mvn -o -Dmaven.test.skip=true -gs `pwd`/configuration/settings.xml clean package'
-                sh 'docker build -f Dockerfile -t $REGISTRY/$HARBOR_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .'
-                sh 'docker login $REGISTRY -u ${DOCKER_USERNAME}'
-                sh 'docker push $REGISTRY/$HARBOR_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER'
-            
+        stage('Deploy to Kubernetes') {
+            steps {
+                withKubeConfig(caCertificate: '', clusterName: 'test-k8s-haha01', contextName: '', credentialsId: 'ack-01', namespace: 'sino-ops', serverUrl: '') {
+                    sh "mkdir -p /.kube && cp ${ack-01} /.kube/config"
+                    sh "cat /.kube/config"
+                }
             }
         }
-    }
-    stage ('deploy to dev') {
-      when {
-        environment name: 'RUN_ENV',
-        value: 'dev'
-      }
-      steps {
-        kubernetesDeploy(configs: 'deploy/dev/**', enableConfigSubstitution: true, kubeConfig: [path: '.kube/config'])
-      }
-    }
-    stage ('deploy to test') {
-      when {
-        environment name: 'RUN_ENV',
-        value: 'test'
-      }
-      steps {
-        kubernetesDeploy(configs: 'deploy/test/**', enableConfigSubstitution: true, kubeConfig: [path: '.kube/config'])
-      }
-    }
+        stage('Package') {
+            steps {
+                container("mvn") {
+                    sh "ls"
+                    sh "mvn package -B -DskipTests"
+                }
+            }
+        }
+        stage('Info') {
+            steps {
+                container("mvn") {
+                    sh "ls"
+                    sh "hostname"
+                    sh "mvn -v"
+                }
+            }
+        }
   }
 }
