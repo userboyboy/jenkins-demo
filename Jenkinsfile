@@ -29,7 +29,7 @@ pipeline {
     }
     stage ('build & push') {
         steps {
-            container ('jdk11') {
+            container ('mvn') {
                 sh 'mvn -o -Dmaven.test.skip=true -gs `pwd`/configuration/settings.xml clean package'
                 sh 'docker build -f Dockerfile -t $REGISTRY/$HARBOR_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .'
                 sh 'docker login $REGISTRY -u ${DOCKER_USERNAME}'
