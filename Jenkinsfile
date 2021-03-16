@@ -7,6 +7,9 @@ pipeline {
         REPO = sh(returnStdout: true, script: 'echo $repo').trim()
         BRANCH = sh(returnStdout: true, script: 'echo $branch').trim()
     }
+   parameters {
+    gitParameter branchFilter: 'origin/(.*)', defaultValue: 'master', name: 'BRANCH', type: 'PT_BRANCH'
+    }
     agent {
 		kubernetes {
 		  cloud 'kubernetes-ACK'
@@ -14,6 +17,11 @@ pipeline {
 		}
     }
     stages {
+	    stage('啦代码') {
+      steps {
+        git branch: "${params.BRANCH}", url: 'https://github.com/userboyboy/jenkins-demo.git'
+      }
+    }
 		stage ('prepare') {
 		  steps {
 			withCredentials([file(credentialsId: 'ack-01', variable: 'KUBECONFIG')]) {
